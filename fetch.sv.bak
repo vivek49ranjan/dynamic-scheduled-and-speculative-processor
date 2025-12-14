@@ -1,0 +1,36 @@
+module i_f (
+    input wire clock,
+    input wire reset,
+    input wire stall,         
+    input wire branch_taken,
+    input wire [9:0] branch_target,
+    input wire [31:0] instruction_mem_data, 
+    output reg [9:0] if_id_pc,         
+    output reg [31:0] if_id_opcode     
+);
+
+
+reg [9:0] pc_reg;
+
+
+wire [9:0] next_pc;
+assign next_pc = (branch_taken) ? branch_target :
+                 (pc_reg + 10'd1); 
+
+always @(posedge clock or posedge reset) begin
+    if (reset) begin
+        pc_reg <= 10'b0;
+        if_id_pc <= 10'b0;
+        if_id_opcode <= 32'b0;
+    end else begin
+        if (!stall) begin
+            pc_reg <= next_pc;
+        end
+        if (!stall) begin
+            if_id_pc <= pc_reg;
+            if_id_opcode <= instruction_mem_data;
+        end
+    end
+end
+endmodule
+
