@@ -1,3 +1,153 @@
+import config_pkg::*;
+import cpu_types_pkg::*;
+
+module reservation_station (
+    input  logic clk, reset,
+    
+    // Dispatch Interface
+    input  logic rs_dispatch_valid,
+    input  alu_dispatch_packet_t rs_dispatch_data,
+    output logic [4:0] rs_allocated_idx,
+    output logic rs_full_out,
+    
+    // Issue Interface
+    output logic [7:0]  fu_issue_opcode,
+    output logic [31:0] fu_issue_operand1,
+    output logic [31:0] fu_issue_operand2,
+    output logic [4:0]  fu_issue_dest_reg,
+    output logic [4:0]  fu_issue_rob_idx,
+    output logic        fu_issue_en,
+    
+    // CDB Sniffing
+    input  logic        cdb_valid,
+    input  logic [4:0]  cdb_rob_tag,
+    input  logic [31:0] cdb_value,
+    
+    // Status Interface
+    output rs_status_t  rs_status_out[7:0],
+    input  logic [7:0]  rs_issue_en_in,
+    
+    input  logic fu_add_sub_busy, fu_logical_busy, fu_shift_busy, 
+    input  logic fu_rotate_busy, fu_inc_dec_busy, fu_abs_busy, fu_compare_busy
+);
+
+    parameter RS_DEPTH = 8;
+    alu_rs_entry_t rs_entries[RS_DEPTH];
+    
+    logic [2:0] current_issued_idx;
+    logic       is_issuing;
+
+    // --- Combinational Logic ---
+    always_comb begin
+        // Allocation
+        rs_full_out = 1'b1;
+        rs_allocated_idx = 5'd0;
+        for (int i = 0; i < RS_DEPTH; i++) begin
+            if (!rs_entries[i].busy) begin
+                rs_allocated_idx = i[4:0];
+                rs_full_out = 1'b0;
+                break;
+            end
+        end
+
+        // Issue Selection
+        fu_issue_en = 1'b0;
+        is_issuing  = 1'b0;
+        current_issued_idx = 3'd0;
+        {fu_issue_opcode, fu_issue_operand1, fu_issue_operand2, fu_issue_dest_reg, fu_issue_rob_idx} = '0;
+
+        for (int i = 0; i < RS_DEPTH; i++) begin
+            if (rs_issue_en_in[i]) begin
+                fu_issue_en       = 1'b1;
+                is_issuing        = 1'b1;
+                current_issued_idx = i[2:0];
+                fu_issue_opcode   = rs_entries[i].opcode;
+                fu_issue_operand1 = rs_entries[i].V_j;
+                fu_issue_operand2 = rs_entries[i].V_k;
+                fu_issue_dest_reg = rs_entries[i].dest_reg;
+                fu_issue_rob_idx  = rs_entries[i].rob_idx;
+                break;
+            end
+        end
+        
+        // Status Reporting
+        for (int i = 0; i < RS_DEPTH; i++) begin
+            rs_status_out[i].valid   = rs_entries[i].busy;
+            rs_status_out[i].ready   = rs_entries[i].Vj_valid && rs_entries[i].Vk_valid;
+            rs_status_out[i].rob_idx = rs_entries[i].rob_idx;
+            
+            case (rs_entries[i].opcode[7:5])
+                3'b000:  rs_status_out[i].fu_ready = !fu_add_sub_busy;
+                3'b011:  rs_status_out[i].fu_ready = !fu_logical_busy;
+                3'b100:  rs_status_out[i].fu_ready = !fu_shift_busy;
+                3'b101:  rs_status_out[i].fu_ready = !fu_rotate_busy;
+                3'b110:  rs_status_out[i].fu_ready = !fu_inc_dec_busy;
+                3'b111:  rs_status_out[i].fu_ready = !fu_abs_busy && !fu_compare_busy;
+                default: rs_status_out[i].fu_ready = 1'b1;
+            endcase
+        end
+    end
+
+    // --- Sequential Logic ---
+    always_ff @(posedge clk or posedge reset) begin
+        if (reset) begin
+            for (int i = 0; i < RS_DEPTH; i++) begin
+                rs_entries[i].busy <= 1'b0;
+            end
+        end else begin
+            for (int i = 0; i < RS_DEPTH; i++) begin
+                // 1. Clear on Issue
+                if (is_issuing && (current_issued_idx == i[2:0])) begin
+                    rs_entries[i].busy <= 1'b0;
+                end
+
+                // 2. Dispatch (Priority over Clear)
+                if (rs_dispatch_valid && !rs_full_out && (rs_allocated_idx[2:0] == i[2:0])) begin
+                    rs_entries[i].busy     <= 1'b1;
+                    rs_entries[i].opcode   <= rs_dispatch_data.opcode;
+                    rs_entries[i].rob_idx  <= rs_dispatch_data.rob_idx;
+                    rs_entries[i].dest_reg <= rs_dispatch_data.dest_reg;
+                    
+                    // Sniffing op1
+                    if (cdb_valid && (rs_dispatch_data.op1_rob_tag == cdb_rob_tag)) begin
+                        rs_entries[i].Vj_valid <= 1'b1;
+                        rs_entries[i].V_j      <= cdb_value;
+                    end else begin
+                        rs_entries[i].Vj_valid <= rs_dispatch_data.op1_is_ready;
+                        rs_entries[i].V_j      <= rs_dispatch_data.op1_val;
+                        rs_entries[i].Qj       <= rs_dispatch_data.op1_rob_tag;
+                    end
+
+                    // Sniffing op2
+                    if (cdb_valid && (rs_dispatch_data.op2_rob_tag == cdb_rob_tag)) begin
+                        rs_entries[i].Vk_valid <= 1'b1;
+                        rs_entries[i].V_k      <= cdb_value;
+                    end else begin
+                        rs_entries[i].Vk_valid <= rs_dispatch_data.op2_is_ready;
+                        rs_entries[i].V_k      <= rs_dispatch_data.op2_val;
+                        rs_entries[i].Qk       <= rs_dispatch_data.op2_rob_tag;
+                    end
+                end 
+                // 3. Normal CDB Sniffing
+                else if (rs_entries[i].busy && cdb_valid) begin
+                    if (!rs_entries[i].Vj_valid && (rs_entries[i].Qj == cdb_rob_tag)) begin
+                        rs_entries[i].Vj_valid <= 1'b1;
+                        rs_entries[i].V_j      <= cdb_value;
+                    end
+                    if (!rs_entries[i].Vk_valid && (rs_entries[i].Qk == cdb_rob_tag)) begin
+                        rs_entries[i].Vk_valid <= 1'b1;
+                        rs_entries[i].V_k      <= cdb_value;
+                    end
+                end
+            end // end for loop
+        end // end else
+    end // end always_ff
+endmodule
+// --- ALU TOP AND FUNCTIONAL UNITS ---
+// (Paste existing alu_top and FU modules here, they are structurally correct)
+`timescale 1ns / 1ps
+import config_pkg::*;
+import cpu_types_pkg::*;
 
 module alu_top (
     input  logic        clk, reset,
