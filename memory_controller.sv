@@ -1,28 +1,50 @@
 module mem_controller (
-    input  clock,
-    input  reset,
-    input  [9:0]  pc,
-    output logic [31:0] opcode,
-    input  [9:0]  mem_Raddrs,
-    input  [9:0]  mem_Waddrs,
-    input  [31:0] write_data,
-    output logic [31:0] read1_data,
-    input  read1_en,
-    input  read2_en,
-    input  write_en
+    input  logic        clock, reset,
+    input  logic [9:0]  instr_addr,
+    input  logic        instr_read_en,
+    output logic [31:0] instr_data_out,
+    output logic        instr_valid,
+    output logic        pc_ready,
+    input  logic        pc_req,
+    input  logic [9:0]  data_mem_addr,
+    input  logic [31:0] data_write_val,
+    input  logic        data_read_write,
+    input  logic        read_write_req,
+    output logic [31:0] data_read_val,
+    output logic        data_valid,
+    output logic        mux_en, mux_rw,
+    output logic [9:0]  mux_addr,
+    output logic [31:0] mux_write_data,
+    input  logic [31:0] mem_data_out,
+    input  logic        mem_done
 );
-    logic [8:0] b1_data1, b2_data1, b3_data1, b4_data1;
-    logic b1_first_ready, b2_first_ready, b3_first_ready, b4_first_ready;
-    logic [8:0] b1_data2, b2_data2, b3_data2, b4_data2;
-    logic b1_second_ready, b2_second_ready, b3_second_ready, b4_second_ready;
-    logic b1_write_done, b2_write_done, b3_write_done, b4_write_done;
 
-    assign opcode = {b4_data1[7:0], b3_data1[7:0], b2_data1[7:0], b1_data1[7:0]};
-    assign read1_data = {b4_data2[7:0], b3_data2[7:0], b2_data2[7:0], b1_data2[7:0]};
+    
+    assign pc_ready = reset ? 1'b1 : !read_write_req;
 
-    // Instantiate 4 byte-banks
-    memory block1 (.clock(clock), .reset(reset), .read1(read1_en), .address1(pc), .data1(b1_data1), .first_ready(b1_first_ready), .read2(read2_en), .address2(mem_Raddrs), .data2(b1_data2), .second_ready(b1_second_ready), .write(write_en), .write_address(mem_Waddrs), .write_data(write_data[7:0]), .write_done(b1_write_done));
-    memory block2 (.clock(clock), .reset(reset), .read1(read1_en), .address1(pc), .data1(b2_data1), .first_ready(b2_first_ready), .read2(read2_en), .address2(mem_Raddrs), .data2(b2_data2), .second_ready(b2_second_ready), .write(write_en), .write_address(mem_Waddrs), .write_data(write_data[15:8]), .write_done(b2_write_done));
-    memory block3 (.clock(clock), .reset(reset), .read1(read1_en), .address1(pc), .data1(b3_data1), .first_ready(b3_first_ready), .read2(read2_en), .address2(mem_Raddrs), .data2(b3_data2), .second_ready(b3_second_ready), .write(write_en), .write_address(mem_Waddrs), .write_data(write_data[23:16]), .write_done(b3_write_done));
-    memory block4 (.clock(clock), .reset(reset), .read1(read1_en), .address1(pc), .data1(b4_data1), .first_ready(b4_first_ready), .read2(read2_en), .address2(mem_Raddrs), .data2(b4_data2), .second_ready(b4_second_ready), .write(write_en), .write_address(mem_Waddrs), .write_data(write_data[31:24]), .write_done(b4_write_done));
+    assign instr_data_out = mem_data_out;
+    assign data_read_val  = mem_data_out;
+
+   
+    assign instr_valid = mem_done && !read_write_req && pc_req;
+    assign data_valid  = mem_done && read_write_req;
+
+    always_comb begin
+        mux_en = 1'b0; 
+        mux_addr = 10'b0; 
+        mux_rw = 1'b1; 
+        mux_write_data = 32'b0;
+
+        if (read_write_req) begin
+            mux_en         = 1'b1; 
+            mux_addr       = data_mem_addr; 
+            mux_rw         = data_read_write; 
+            mux_write_data = data_write_val;
+        end 
+        else if (pc_req && instr_read_en) begin
+            mux_en         = 1'b1; 
+            mux_addr       = instr_addr; 
+            mux_rw         = 1'b1; 
+        end
+    end
 endmodule
