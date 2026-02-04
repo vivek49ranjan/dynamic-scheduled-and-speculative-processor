@@ -24,7 +24,6 @@ module register (
         end
     end
 
-   
     assign read_data1 = (read_addr1 == 5'b0) ? 32'b0 : reg_file[read_addr1];
     assign read_data2 = (read_addr2 == 5'b0) ? 32'b0 : reg_file[read_addr2];
 
