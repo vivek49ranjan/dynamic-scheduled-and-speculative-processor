@@ -1,64 +1,67 @@
-`define PC_WIDTH 10
-`define REG_ADDR_WIDTH 5
-`define OPCODE_WIDTH 8
-`define IMMEDIATE_WIDTH 8
-
-typedef struct packed {
-    logic [`OPCODE_WIDTH-1:0]   opcode;
-    logic [`REG_ADDR_WIDTH-1:0] operand1_reg;
-    logic [`REG_ADDR_WIDTH-1:0] operand2_reg;
-    logic [`REG_ADDR_WIDTH-1:0] result_reg;
-    logic [`REG_ADDR_WIDTH-1:0] load_destination;
-    logic [9:0]                 load_source;       
-    logic [`REG_ADDR_WIDTH-1:0] store_source;
-    logic [9:0]                 store_destination;  
-    logic [`IMMEDIATE_WIDTH-1:0] immediate;
-} decoded_instruction_t;
-
-
+import config_pkg::*;
+import cpu_types_pkg::*;
 
 module id (
-    input                       clock,
-    input                       reset,
-    input [`PC_WIDTH-1:0]       if_id_pc,
-    input [31:0]                if_id_opcode,
-    input logic                 stall,
-    input logic                 flush,
+    input  logic                clock,
+    input  logic                reset,
+    input  logic [9:0]          if_id_pc,
+    input  logic [31:0]         if_id_opcode,
+    input  logic                stall,              
+    input  logic                flush,              
+    input  logic                dispatch_success_i, 
+    
     output logic                id_valid,
-    output reg [`PC_WIDTH-1:0]  id_pc,
-    output  decoded_instruction_t decoded_instruction
+    output logic [9:0]          id_pc,
+    output decoded_instruction_t decoded_instruction
 );
-	
-    decoded_instruction_t comb_decoded_instruction;
 
+    decoded_instruction_t comb_dec;
     always_comb begin
-        comb_decoded_instruction.opcode           = if_id_opcode[31:24];
-        comb_decoded_instruction.operand1_reg     = if_id_opcode[23:19];
-        comb_decoded_instruction.operand2_reg     = if_id_opcode[18:14];
-        comb_decoded_instruction.result_reg       = if_id_opcode[12:8];
-        comb_decoded_instruction.load_destination = if_id_opcode[23:19];
-        comb_decoded_instruction.load_source      = if_id_opcode[20:11]; 
-        comb_decoded_instruction.store_source     = if_id_opcode[15:11];
-        comb_decoded_instruction.store_destination= if_id_opcode[25:16]; 
-        comb_decoded_instruction.immediate        = if_id_opcode[7:0];
-    end
+        comb_dec = '0; 
+        comb_dec.opcode       = if_id_opcode[7:0];   
+        comb_dec.operand1_reg = if_id_opcode[12:8];  
+        comb_dec.operand2_reg = if_id_opcode[17:13]; 
+        comb_dec.result_reg   = if_id_opcode[22:18]; 
+        comb_dec.immediate    = if_id_opcode[31:24];
+        comb_dec.pc           = if_id_pc;
 
-    always_ff @(posedge clock or posedge reset) begin
-        if (reset) begin
-            id_pc <= '0;
-            decoded_instruction <= '0;
-            id_valid <= 1'b0;
-        end else if (flush) begin
-            id_pc <= '0;
-            decoded_instruction <= '0;
-            id_valid <= 1'b0;
-        end else if (stall) begin
-            // Hold values on stall
-        end else begin
-            id_pc <= if_id_pc;
-            decoded_instruction <= comb_decoded_instruction;
-            id_valid <= 1'b1;
+        if (comb_dec.opcode == OPCODE_LOAD) begin
+            comb_dec.instr_type       = INSTR_LOAD;
+            comb_dec.load_destination  = if_id_opcode[22:18];
+            comb_dec.load_source       = if_id_opcode[17:8];
+        end 
+        else if (comb_dec.opcode == OPCODE_STORE) begin
+            comb_dec.instr_type        = INSTR_STORE;
+            comb_dec.store_source      = if_id_opcode[12:8];
+            comb_dec.store_destination = if_id_opcode[22:13];
+        end 
+        else if (comb_dec.opcode[7:6] == 2'b11) begin
+            comb_dec.instr_type = INSTR_BRANCH;
+        end 
+        else begin
+            comb_dec.instr_type = (if_id_opcode == 32'b0) ? INSTR_OTHER : INSTR_ALU;
         end
     end
 
+
+    always_ff @(posedge clock or posedge reset) begin
+        if (reset) begin
+            id_pc               <= 10'd0;
+            decoded_instruction <= '0;
+            id_valid            <= 1'b0;
+        end 
+        else if (flush) begin
+            id_pc               <= 10'd0;
+            decoded_instruction <= '0;
+            id_valid            <= 1'b0;
+        end 
+        else if (dispatch_success_i) begin
+            id_valid <= 1'b0;
+        end 
+        else if (!stall && (if_id_opcode != 32'd0)) begin
+            id_pc               <= if_id_pc;
+            decoded_instruction <= comb_dec; 
+            id_valid            <= 1'b1;
+        end
+    end
 endmodule
