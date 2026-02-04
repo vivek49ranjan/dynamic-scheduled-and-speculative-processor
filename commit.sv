@@ -1,13 +1,15 @@
+import cpu_types_pkg::*;
+
 module commit_stage (
     input  logic               clock, reset,
-    input  rob_entry_t         rob_head_entry_i, 
-    input  logic               rob_empty_i,      
+    input  rob_entry_t         rob_head_entry_i,
+    input  logic               rob_empty_i,     
     input  logic               lsq_ready_to_commit_i,
     
     output logic               reg_write_en_o,
     output logic [4:0]         reg_write_addr_o,
     output logic [31:0]        reg_write_data_o,
-    output logic               commit_en_o       
+    output logic               commit_en_o    
 );
 
     always_comb begin
@@ -28,7 +30,6 @@ module commit_stage (
                 end
             end
 
-           
             if (rob_head_entry_i.inst_data.instr_type == INSTR_STORE) begin
                 if (lsq_ready_to_commit_i) commit_en_o = 1'b1;
             end else begin
