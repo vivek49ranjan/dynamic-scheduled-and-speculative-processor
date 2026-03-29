@@ -1,66 +1,60 @@
-`timescale 1ns / 1ps
-
-// ============================================================================
-// 1. CONFIGURATION PACKAGE: Hardware Constants and Opcode Encodings
-// ============================================================================
 package config_pkg;
-    // ALU Operation Functional Unit Encodings (Top 3 bits of opcode)
     parameter FU_ADD_SUB = 3'b000;
     parameter FU_LOGICAL = 3'b011;
     parameter FU_SHIFT   = 3'b100;
-    parameter FU_ROTATE  = 3'b101;
-    parameter FU_INC_DEC = 3'b110;
-    parameter FU_SPECIAL = 3'b111;
+    parameter FU_SPECIAL = 3'b111; 
 
-    // Sub-operation codes for FU_SPECIAL
-    parameter SUB_ABS     = 3'b000;
-    parameter SUB_COMPARE = 3'b001;
+    parameter OPCODE_ADD     = {FU_ADD_SUB, 5'b00000}; 
+    parameter OPCODE_SUB     = {FU_ADD_SUB, 5'b00001}; 
+    parameter OPCODE_ADDI    = {FU_ADD_SUB, 5'b00010}; 
+    parameter OPCODE_SUBI    = {FU_ADD_SUB, 5'b00101}; 
 
-    // --- ARITHMETIC OPCODES ---
-    parameter OPCODE_ADD     = {FU_ADD_SUB, 3'b000}; // 8'h00
-    parameter OPCODE_SUB     = {FU_ADD_SUB, 3'b001}; // 8'h01
-    parameter OPCODE_ADDI    = {FU_ADD_SUB, 3'b010}; // 8'h02
-    parameter OPCODE_SUBI    = {FU_ADD_SUB, 3'b101}; // 8'h05 
+    parameter OPCODE_AND     = {FU_LOGICAL, 5'b00000}; 
+    parameter OPCODE_OR      = {FU_LOGICAL, 5'b00001}; 
+    parameter OPCODE_XOR     = {FU_LOGICAL, 5'b00010}; 
+    parameter OPCODE_ANDI    = {FU_LOGICAL, 5'b00100}; 
+    parameter OPCODE_ORI     = {FU_LOGICAL, 5'b00101}; 
+    parameter OPCODE_XORI    = {FU_LOGICAL, 5'b00110}; 
 
-    // --- LOGICAL OPCODES ---
-    parameter OPCODE_AND     = {FU_LOGICAL, 3'b000};
-    parameter OPCODE_OR      = {FU_LOGICAL, 3'b001};
-    parameter OPCODE_XOR     = {FU_LOGICAL, 3'b010};
-    parameter OPCODE_NOT     = {FU_LOGICAL, 3'b011};
-    parameter OPCODE_ANDI    = {FU_LOGICAL, 3'b100};
-    parameter OPCODE_ORI     = {FU_LOGICAL, 3'b101};
-    parameter OPCODE_XORI    = {FU_LOGICAL, 3'b110};
+    parameter OPCODE_SLL     = {FU_SHIFT,   5'b00000}; 
+    parameter OPCODE_SRL     = {FU_SHIFT,   5'b00001}; 
+    parameter OPCODE_SRA     = {FU_SHIFT,   5'b00010}; 
+    parameter OPCODE_SLLI    = {FU_SHIFT,   5'b00100}; 
+    parameter OPCODE_SRLI    = {FU_SHIFT,   5'b00101}; 
+    parameter OPCODE_SRAI    = {FU_SHIFT,   5'b00110}; 
 
-    // --- SHIFT OPCODES ---
-    parameter OPCODE_SLL     = {FU_SHIFT,   3'b000};
-    parameter OPCODE_SRL     = {FU_SHIFT,   3'b001};
-    parameter OPCODE_SLLI    = {FU_SHIFT,   3'b100};
-    parameter OPCODE_SRLI    = {FU_SHIFT,   3'b101};
-
-    // --- MEMORY OPCODES (FIXES ERROR 10161) ---
     parameter OPCODE_LOAD    = 8'h03; 
     parameter OPCODE_STORE   = 8'h04;
 
-    // --- OTHER OPCODES ---
-    parameter OPCODE_ROTL    = {FU_ROTATE,  3'b000};
-    parameter OPCODE_ROTR    = {FU_ROTATE,  3'b001};
-    parameter OPCODE_INC     = {FU_INC_DEC, 3'b000};
-    parameter OPCODE_DEC     = {FU_INC_DEC, 3'b001};
-    parameter OPCODE_ABS     = {FU_SPECIAL, SUB_ABS};
-    parameter OPCODE_COMPARE = {FU_SPECIAL, SUB_COMPARE};
+    parameter OPCODE_COMPARE = {FU_SPECIAL, 5'b00001}; 
     
-    // --- BRANCH OPCODES ---
-    parameter FU_BRANCH = 3'b111; 
-    parameter JLT = 8'b11000000;
-    parameter JGT = 8'b11000001;
-    parameter JNE = 8'b11000010;
-    parameter JLE = 8'b11000011;
-    parameter JE  = 8'b11000100;
+    parameter JE   = 8'b11000100; 
+    parameter JNE  = 8'b11000010; 
+    parameter JLT  = 8'b11000000; 
+    parameter JGE  = 8'b11000101; 
+    parameter JLTU = 8'b11000110; 
+    parameter JGEU = 8'b11000111; 
+
+    parameter RV32_LOAD   = 7'b0000011; 
+    parameter RV32_STORE  = 7'b0100011; 
+    parameter RV32_BRANCH = 7'b1100011; 
+    parameter RV32_OP_IMM = 7'b0010011; 
+    parameter RV32_OP     = 7'b0110011; 
+    parameter RV32_LUI    = 7'b0110111;
+    parameter RV32_AUIPC  = 7'b0010111;
+    parameter RV32_JAL    = 7'b1101111;
+    parameter RV32_JALR   = 7'b1100111;
+
+    parameter RV32_F3_ADD_SUB = 3'b000;
+    parameter RV32_F3_SLL     = 3'b001;
+    parameter RV32_F3_SLT     = 3'b010;
+    parameter RV32_F3_SLTU    = 3'b011;
+    parameter RV32_F3_XOR     = 3'b100;
+    parameter RV32_F3_SR      = 3'b101;
+    parameter RV32_F3_OR      = 3'b110;
+    parameter RV32_F3_AND     = 3'b111;
 endpackage
 
-// ============================================================================
-// 2. CPU TYPES PACKAGE: Structs, Enums, and Data Flow Objects
-// ============================================================================
 package cpu_types_pkg;
     import config_pkg::*;
 
@@ -82,7 +76,7 @@ package cpu_types_pkg;
         logic [9:0]        load_source;
         logic [4:0]        store_source;
         logic [9:0]        store_destination;
-        logic [7:0]        immediate;
+        logic [31:0]       immediate;
         logic [9:0]        pc; 
     } decoded_instruction_t;
 
@@ -106,7 +100,7 @@ package cpu_types_pkg;
         logic [4:0]  store_src_reg;
         logic [31:0] branch_target;
         logic [4:0]  lsq_idx; 
-        logic        is_mispredicted; // <--- ADD THIS LINE
+        logic        is_mispredicted; 
     } rob_instruction_metadata_t;
 
     typedef struct packed {
@@ -117,7 +111,6 @@ package cpu_types_pkg;
         logic [31:0] result_value;
     } rob_entry_t;
 
-    // --- Dispatch Packets ---
     typedef struct packed {
         logic [7:0]  opcode;
         logic [4:0]  rob_idx;
@@ -135,6 +128,7 @@ package cpu_types_pkg;
         logic [4:0]  rob_idx;
         logic [4:0]  lsq_idx;
         logic [4:0]  dest_reg;
+        logic [31:0] immediate; 
         logic        addr_op_is_ready;
         logic [31:0] addr_op_val;
         logic [4:0]  addr_op_rob_tag;
@@ -147,7 +141,7 @@ package cpu_types_pkg;
         logic [7:0]  opcode;
         logic [4:0]  rob_idx;
         logic [31:0] pc;
-        logic [7:0]  immediate;
+        logic [31:0] immediate; 
         logic        operand1_ready;
         logic [31:0] operand1_val;
         logic [4:0]  operand1_rob_tag;
@@ -156,10 +150,12 @@ package cpu_types_pkg;
         logic [4:0]  operand2_rob_tag;
     } branch_dispatch_packet_t;
 
+    // THE FIX: Added fu_type here so the issue_stage knows which FU to send to
     typedef struct packed {
         logic        valid;
         logic        ready;
         logic        fu_ready;
+        logic [2:0]  fu_type; 
         logic [4:0]  rob_idx;
     } rs_status_t;
 
@@ -181,7 +177,7 @@ package cpu_types_pkg;
         logic [7:0]  opcode;
         logic [4:0]  rob_idx;
         logic [31:0] pc;
-        logic [7:0]  imm;
+        logic [31:0] imm; 
         logic        Vj_ready;
         logic [31:0] Vj_data;
         logic [4:0]  Vj_rob_tag;
