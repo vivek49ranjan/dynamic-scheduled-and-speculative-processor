@@ -1,4 +1,3 @@
-`timescale 1ns / 1ps
 import cpu_types_pkg::*;
 import config_pkg::*;
 
@@ -77,5 +76,4 @@ module rename_stage (
         renamed_inst_o.op2_is_ready = op2_lkp[READY_BIT];
         renamed_inst_o.op2_rob_tag  = op2_lkp[4:0];
     end
-
 endmodule
