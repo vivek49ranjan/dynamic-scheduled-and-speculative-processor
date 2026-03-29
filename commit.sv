@@ -1,5 +1,4 @@
 import cpu_types_pkg::*;
-
 module commit_stage (
     input  logic               clock, reset,
     input  rob_entry_t         rob_head_entry_i,
