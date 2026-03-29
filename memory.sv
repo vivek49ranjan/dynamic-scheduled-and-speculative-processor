@@ -15,17 +15,12 @@ module memory (
     logic [31:0] ram [0:1023];
 
     initial begin
+        for (int i = 0; i < 1024; i++) rom[i] = 32'h00000033; 
         $readmemh("program.hex", rom);
     end
 
-    always_ff @(posedge clock) begin
-        if (pc_en) begin
-            pc_instr_out <= rom[pc_addr];
-            pc_done      <= 1'b1;
-        end else begin
-            pc_done      <= 1'b0;
-        end
-    end
+    assign pc_instr_out = pc_en ? rom[pc_addr] : 32'h00000033;
+    assign pc_done      = pc_en;
 
     always_ff @(posedge clock or posedge reset) begin
         if (reset) begin
