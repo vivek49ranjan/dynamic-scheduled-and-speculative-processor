@@ -1,11 +1,9 @@
 import config_pkg::*;
 import cpu_types_pkg::*;
-
 module branch_reservation_station (
     input  logic clock, reset,
     input  logic rs_dispatch_valid,
     input  branch_dispatch_packet_t rs_dispatch_data,
-    output logic [4:0] rs_allocated_idx,
     output logic rs_full_out,
     
     output logic fu_issue_en,
@@ -15,18 +13,20 @@ module branch_reservation_station (
     output logic [31:0] fu_issue_pc,     
     output logic [7:0]  fu_issue_imm,   
     output logic [4:0]  fu_issue_rob_idx,
+    output logic        fu_issue_pred_taken,   
+    output logic [9:0]  fu_issue_pred_target,  
     
     input  logic cdb_valid,
     input  logic [4:0]  cdb_rob_tag,
-    input  logic [31:0] cdb_value,
-    input  logic fu_branch_busy
+    input  logic [31:0] cdb_value
 );
 
     parameter RS_DEPTH = 4;
     branch_rs_entry_t rs_entries[RS_DEPTH];
     logic [4:0] issue_idx;
     logic       can_issue;
-
+	 
+	 logic [4:0] rs_allocated_idx;
     always_comb begin
         rs_full_out = 1'b1;
         rs_allocated_idx = 5'd0;
@@ -41,20 +41,22 @@ module branch_reservation_station (
         can_issue = 1'b0;
         issue_idx = 5'd0;
         for (int i = 0; i < RS_DEPTH; i++) begin
-            if (rs_entries[i].busy && rs_entries[i].Vj_ready && rs_entries[i].Vk_ready && !fu_branch_busy) begin
+            if (rs_entries[i].busy && rs_entries[i].Vj_ready && rs_entries[i].Vk_ready ) begin
                 can_issue = 1'b1;
                 issue_idx = i[4:0];
                 break;
             end
         end
         
-        fu_issue_en       = can_issue;
-        fu_issue_opcode   = can_issue ? rs_entries[issue_idx[1:0]].opcode  : 8'h0;
-        fu_issue_operand1 = can_issue ? rs_entries[issue_idx[1:0]].Vj_data : 32'h0;
-        fu_issue_operand2 = can_issue ? rs_entries[issue_idx[1:0]].Vk_data : 32'h0;
-        fu_issue_pc       = can_issue ? rs_entries[issue_idx[1:0]].pc      : 32'h0;
-        fu_issue_imm      = can_issue ? rs_entries[issue_idx[1:0]].imm     : 8'h0;
-        fu_issue_rob_idx  = can_issue ? rs_entries[issue_idx[1:0]].rob_idx : 5'h0;
+        fu_issue_en          = can_issue;
+        fu_issue_opcode      = can_issue ? rs_entries[issue_idx[1:0]].opcode  : 8'h0;
+        fu_issue_operand1    = can_issue ? rs_entries[issue_idx[1:0]].Vj_data : 32'h0;
+        fu_issue_operand2    = can_issue ? rs_entries[issue_idx[1:0]].Vk_data : 32'h0;
+        fu_issue_pc          = can_issue ? rs_entries[issue_idx[1:0]].pc      : 32'h0;
+        fu_issue_imm         = can_issue ? rs_entries[issue_idx[1:0]].imm     : 8'h0;
+        fu_issue_rob_idx     = can_issue ? rs_entries[issue_idx[1:0]].rob_idx : 5'h0;
+        fu_issue_pred_taken  = can_issue ? rs_entries[issue_idx[1:0]].pred_taken  : 1'b0; 
+        fu_issue_pred_target = can_issue ? rs_entries[issue_idx[1:0]].pred_target : 10'h0; 
     end
 
     always_ff @(posedge clock or posedge reset) begin
@@ -66,11 +68,13 @@ module branch_reservation_station (
             wr_ptr = rs_allocated_idx[1:0]; 
 
             if (rs_dispatch_valid && !rs_full_out) begin
-                rs_entries[wr_ptr].busy    <= 1'b1;
-                rs_entries[wr_ptr].opcode  <= rs_dispatch_data.opcode;
-                rs_entries[wr_ptr].rob_idx <= rs_dispatch_data.rob_idx;
-                rs_entries[wr_ptr].pc      <= rs_dispatch_data.pc;        
-                rs_entries[wr_ptr].imm     <= rs_dispatch_data.immediate; 
+                rs_entries[wr_ptr].busy        <= 1'b1;
+                rs_entries[wr_ptr].opcode      <= rs_dispatch_data.opcode;
+                rs_entries[wr_ptr].rob_idx     <= rs_dispatch_data.rob_idx;
+                rs_entries[wr_ptr].pc          <= rs_dispatch_data.pc;        
+                rs_entries[wr_ptr].imm         <= rs_dispatch_data.immediate; 
+                rs_entries[wr_ptr].pred_taken  <= rs_dispatch_data.predicted_taken;  
+                rs_entries[wr_ptr].pred_target <= rs_dispatch_data.predicted_target; 
                 
                 if (rs_dispatch_data.operand1_ready) begin
                     rs_entries[wr_ptr].Vj_ready <= 1'b1;
@@ -114,7 +118,6 @@ module branch_reservation_station (
         end
     end
 endmodule
-
 module branch_unit (
     input  logic        clock, reset,
     input  logic        fu_issue_en,
@@ -124,14 +127,17 @@ module branch_unit (
     input  logic [31:0] fu_issue_pc,  
     input  logic [7:0]  fu_issue_imm, 
     input  logic [4:0]  fu_issue_rob_idx,
+    input  logic        fu_issue_pred_taken,  
+    input  logic [9:0]  fu_issue_pred_target,  
     output logic        branch_cdb_valid,
     output logic [4:0]  branch_cdb_tag,
     output logic [31:0] branch_cdb_val,
-    output logic        busy
+    output logic        branch_cdb_mispredict 
 );
     logic [9:0] target_pc;
     logic taken;
     logic [9:0] word_offset;
+    logic is_mispredict;
 
     always_comb begin
         case (fu_issue_opcode)
@@ -146,23 +152,27 @@ module branch_unit (
         
         word_offset = $signed(fu_issue_imm) >>> 2;
         target_pc = taken ? (fu_issue_pc[9:0] + word_offset) : (fu_issue_pc[9:0] + 10'd1);
+        
+        is_mispredict = (taken != fu_issue_pred_taken) || 
+                        (taken && (target_pc != fu_issue_pred_target));
     end
 
     always_ff @(posedge clock or posedge reset) begin
         if (reset) begin
-            branch_cdb_valid <= 1'b0;
-            branch_cdb_tag   <= '0;
-            branch_cdb_val   <= '0;
-            busy <= 1'b0;
+            branch_cdb_valid      <= 1'b0;
+            branch_cdb_tag        <= '0;
+            branch_cdb_val        <= '0;
+            branch_cdb_mispredict <= 1'b0; 
         end
         else begin
             if (fu_issue_en) begin
-                branch_cdb_valid <= 1'b1;
-                branch_cdb_tag   <= fu_issue_rob_idx;
-                branch_cdb_val   <= {21'b0, taken, target_pc}; 
+                branch_cdb_valid      <= 1'b1;
+                branch_cdb_tag        <= fu_issue_rob_idx;
+                branch_cdb_val        <= {21'b0, taken, target_pc}; 
+                branch_cdb_mispredict <= is_mispredict; 
             end
             else begin
-                branch_cdb_valid <= 1'b0;
+                branch_cdb_valid      <= 1'b0;
             end
         end
     end
