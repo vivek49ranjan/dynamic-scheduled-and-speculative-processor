@@ -1,12 +1,8 @@
-import config_pkg::*;
-import cpu_types_pkg::*;
-
 module reservation_station (
     input  logic clk, reset,
     
     input  logic rs_dispatch_valid,
     input  alu_dispatch_packet_t rs_dispatch_data,
-    output logic [4:0] rs_allocated_idx,
     output logic rs_full_out,
     
     output logic [7:0]  fu_issue_opcode,
@@ -23,8 +19,7 @@ module reservation_station (
     output rs_status_t  rs_status_out[7:0],
     input  logic [7:0]  rs_issue_en_in,
     
-    input  logic fu_add_sub_busy, fu_logical_busy, fu_shift_busy, 
-    input  logic fu_rotate_busy, fu_inc_dec_busy, fu_abs_busy, fu_compare_busy
+    input  logic fu_add_sub_busy, fu_logical_busy, fu_shift_busy, fu_compare_busy
 );
 
     parameter RS_DEPTH = 8;
@@ -38,7 +33,7 @@ module reservation_station (
     logic [RS_DEPTH-1:0] entry_ready;
     logic [31:0]         entry_val_1 [RS_DEPTH-1:0];
     logic [31:0]         entry_val_2 [RS_DEPTH-1:0];
-
+	 logic [4:0]          rs_allocated_idx;
     always_comb begin
         rs_full_out = 1'b1;
         rs_allocated_idx = 5'd0;
