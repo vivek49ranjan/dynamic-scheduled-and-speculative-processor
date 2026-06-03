@@ -1,20 +1,21 @@
 module i_f (
     input  logic        clock, reset,
-    input  logic        stall,              
+    input  logic        stall, 
+    
     input  logic        flush_en,
     input  logic [9:0]  flush_target,
+    
     input  logic        bp_train_en,
     input  logic [9:0]  bp_train_pc, 
     input  logic        bp_train_taken,
     input  logic [9:0]  bp_train_target,
+    
     input  logic [31:0] instruction_mem_data,
     input  logic        instruction_valid,
     input  logic        queue_full,
     
     output logic        enqueue_valid,      
-    output logic [41:0] fetch_packet_o,    
-    output logic        predict_taken_o,   
-    output logic [9:0]  predict_target_o,  
+    output logic [52:0] fetch_packet_o, 
     output logic        start_fetch,
     output logic [9:0]  pc_to_reader,
     
@@ -44,15 +45,11 @@ module i_f (
 
     always_comb begin
         enqueue_valid    = 1'b0;
-        fetch_packet_o   = 42'd0;
-        predict_taken_o  = 1'b0;
-        predict_target_o = 10'd0;
+        fetch_packet_o   = 53'd0;
 
         if (advance_pc && instruction_mem_data != 32'd0) begin
             enqueue_valid    = 1'b1;
-            fetch_packet_o   = {pc, instruction_mem_data}; 
-            predict_taken_o  = predict_taken;
-            predict_target_o = predict_target;
+            fetch_packet_o   = {predict_taken, predict_target, pc, instruction_mem_data}; 
         end
     end
 
@@ -71,7 +68,6 @@ module i_f (
         end
     end
 endmodule
-
 module branch_predictor #(
     parameter INDEX_BITS = 8
 )(
