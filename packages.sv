@@ -1,3 +1,5 @@
+`timescale 1ns / 1ps
+
 package config_pkg;
     parameter FU_ADD_SUB = 3'b000;
     parameter FU_LOGICAL = 3'b011;
@@ -78,6 +80,8 @@ package cpu_types_pkg;
         logic [9:0]        store_destination;
         logic [31:0]       immediate;
         logic [9:0]        pc; 
+        logic              predicted_taken;  
+        logic [9:0]        predicted_target;
     } decoded_instruction_t;
 
     typedef struct packed {
@@ -92,17 +96,13 @@ package cpu_types_pkg;
         logic [4:0]           store_data_rob_tag;
     } renamed_instruction_t;
 
-   typedef struct packed {
+	typedef struct packed {
         logic [31:0] pc;
         logic [7:0]  opcode;
         instruction_type_e instr_type;
         logic [4:0]  rd_idx;      
-        logic [4:0]  store_src_reg;
-        logic [31:0] branch_target;
-        logic [4:0]  lsq_idx; 
         logic        is_mispredicted; 
     } rob_instruction_metadata_t;
-
     typedef struct packed {
         logic        busy;
         logic        is_complete;
@@ -126,7 +126,6 @@ package cpu_types_pkg;
     typedef struct packed {
         logic [7:0]  opcode;
         logic [4:0]  rob_idx;
-        logic [4:0]  lsq_idx;
         logic [4:0]  dest_reg;
         logic [31:0] immediate; 
         logic        addr_op_is_ready;
@@ -148,9 +147,10 @@ package cpu_types_pkg;
         logic        operand2_ready;
         logic [31:0] operand2_val;
         logic [4:0]  operand2_rob_tag;
+        logic        predicted_taken;  
+        logic [9:0]  predicted_target; 
     } branch_dispatch_packet_t;
 
-    // THE FIX: Added fu_type here so the issue_stage knows which FU to send to
     typedef struct packed {
         logic        valid;
         logic        ready;
@@ -184,6 +184,8 @@ package cpu_types_pkg;
         logic        Vk_ready;
         logic [31:0] Vk_data;
         logic [4:0]  Vk_rob_tag;
+        logic        pred_taken;  
+        logic [9:0]  pred_target; 
     } branch_rs_entry_t;
 
     typedef enum logic [1:0] {
