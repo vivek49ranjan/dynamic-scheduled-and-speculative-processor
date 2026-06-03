@@ -1,3 +1,4 @@
+`timescale 1ns/1ps
 import config_pkg::*;
 import cpu_types_pkg::*;
 
