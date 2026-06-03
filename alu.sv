@@ -38,7 +38,7 @@ module alu_top (
         .en(fu_issue_en && (fu_issue_opcode[7:5] == 3'b011)),
         .a(fu_issue_operand1), .b(fu_issue_operand2), .op(fu_issue_opcode[1:0]),
         .rob_idx_in(fu_issue_rob_idx), .dest_reg_in(fu_issue_dest_reg),
-        .busy(fu_logical_busy), .ack(ack_log), // Added ack
+        .busy(fu_logical_busy), .ack(ack_log), 
         .result(res_log), .rob_idx_out(tag_log), .dest_reg_out(dst_log), .done(v_log)
     );
 
@@ -47,7 +47,7 @@ module alu_top (
         .en(fu_issue_en && (fu_issue_opcode[7:5] == 3'b100)),
         .a(fu_issue_operand1), .shamt(fu_issue_operand2[4:0]), .op(fu_issue_opcode[1:0]),     
         .rob_idx_in(fu_issue_rob_idx), .dest_reg_in(fu_issue_dest_reg),
-        .busy(fu_shift_busy), .ack(ack_shf), // Added ack
+        .busy(fu_shift_busy), .ack(ack_shf), 
         .result(res_shf), .rob_idx_out(tag_shf), .dest_reg_out(dst_shf), .done(v_shf)
     );
 
@@ -56,7 +56,7 @@ module alu_top (
         .en(fu_issue_en && (fu_issue_opcode == OPCODE_COMPARE)),
         .a(fu_issue_operand1), .b(fu_issue_operand2), 
         .rob_idx_in(fu_issue_rob_idx), .dest_reg_in(fu_issue_dest_reg),
-        .busy(fu_compare_busy), .ack(ack_cmp), // Added ack
+        .busy(fu_compare_busy), .ack(ack_cmp), 
         .result(res_cmp), .rob_idx_out(tag_cmp), .dest_reg_out(dst_cmp), .done(v_cmp)
     );
 
@@ -100,46 +100,6 @@ module alu_top (
                             cdb_result_rob_tag = tag_cmp; cdb_dest_reg = dst_cmp; ack_cmp = 1'b1; 
                           end
                 endcase
-            end
-        end
-    end
-endmodule
-
-
-module shift_fu (
-    input  logic [31:0] a,
-    input  logic [4:0]  shamt,       
-    input  logic [1:0]  op,          
-    input  logic        reset, clk, en, ack,
-    input  logic [4:0]  rob_idx_in, dest_reg_in,
-    output logic [31:0] result,
-    output logic        done, busy,
-    output logic [4:0]  rob_idx_out, dest_reg_out
-);
-    logic [31:0] a_reg;
-    logic [4:0]  shamt_reg;
-    logic [1:0]  op_reg;
-    logic [4:0]  rob_reg, dest_reg;
-    logic        state;
-
-    always_ff @(posedge clk or posedge reset) begin
-        if (reset) begin state <= 0; done <= 0; busy <= 0; end
-        else begin
-            if (ack) done <= 1'b0; 
-            
-            if (state == 0 && en) begin
-                a_reg <= a; shamt_reg <= shamt; op_reg <= op;
-                rob_reg <= rob_idx_in; dest_reg <= dest_reg_in;
-                state <= 1; busy <= 1;
-            end else if (state == 1) begin
-                case(op_reg)
-                    2'b00:   result <= a_reg << shamt_reg;                
-                    2'b01:   result <= a_reg >> shamt_reg;                
-                    2'b10:   result <= $signed(a_reg) >>> shamt_reg;      
-                    default: result <= a_reg;
-                endcase
-                rob_idx_out <= rob_reg; dest_reg_out <= dest_reg;
-                done <= 1; busy <= 0; state <= 0;
             end
         end
     end
@@ -219,101 +179,39 @@ module logica_fu (
     end
 endmodule
 
-module rotate_fu (
-    input  logic [31:0] a, 
-    input  logic reset, clock, en, op, ack,
-    input  logic [4:0]  rob_idx_in, 
-    input  logic [4:0]  dest_reg_in,
-    output logic [31:0] result, 
-    output logic        done, 
-    output logic [4:0]  rob_idx_out, 
-    output logic [4:0]  dest_reg_out, 
-    output logic        busy
+module shift_fu (
+    input  logic [31:0] a,
+    input  logic [4:0]  shamt,       
+    input  logic [1:0]  op,          
+    input  logic        reset, clk, en, ack,
+    input  logic [4:0]  rob_idx_in, dest_reg_in,
+    output logic [31:0] result,
+    output logic        done, busy,
+    output logic [4:0]  rob_idx_out, dest_reg_out
 );
     logic [31:0] a_reg;
-    logic        op_reg;
-    logic [4:0]  rob_idx_reg, dest_reg_reg;
+    logic [4:0]  shamt_reg;
+    logic [1:0]  op_reg;
+    logic [4:0]  rob_reg, dest_reg;
     logic        state;
 
-    always_ff @(posedge clock or posedge reset) begin
+    always_ff @(posedge clk or posedge reset) begin
         if (reset) begin state <= 0; done <= 0; busy <= 0; end
         else begin
-            if (ack) done <= 1'b0;
+            if (ack) done <= 1'b0; 
             
             if (state == 0 && en) begin
-                a_reg <= a; op_reg <= op;
-                rob_idx_reg <= rob_idx_in; dest_reg_reg <= dest_reg_in;
+                a_reg <= a; shamt_reg <= shamt; op_reg <= op;
+                rob_reg <= rob_idx_in; dest_reg <= dest_reg_in;
                 state <= 1; busy <= 1;
             end else if (state == 1) begin
-                result <= op_reg ? {a_reg[0], a_reg[31:1]} : {a_reg[30:0], a_reg[31]};
-                rob_idx_out <= rob_idx_reg; dest_reg_out <= dest_reg_reg;
-                done <= 1; busy <= 0; state <= 0;
-            end
-        end
-    end
-endmodule
-
-module increment_decrement_fu (
-    input  logic [31:0] a, 
-    input  logic op, clock, reset, en, ack,
-    input  logic [4:0]  rob_idx_in, 
-    input  logic [4:0]  dest_reg_in,
-    output logic [31:0] result, 
-    output logic        done, 
-    output logic [4:0]  rob_idx_out, 
-    output logic [4:0]  dest_reg_out, 
-    output logic        busy
-);
-    logic [31:0] a_reg;
-    logic        op_reg;
-    logic [4:0]  rob_idx_reg, dest_reg_reg;
-    logic        state;
-
-    always_ff @(posedge clock or posedge reset) begin
-        if (reset) begin state <= 0; done <= 0; busy <= 0; end
-        else begin
-            if (ack) done <= 1'b0;
-            
-            if (state == 0 && en) begin
-                a_reg <= a; op_reg <= op;
-                rob_idx_reg <= rob_idx_in; dest_reg_reg <= dest_reg_in;
-                state <= 1; busy <= 1;
-            end else if (state == 1) begin
-                result <= op_reg ? (a_reg - 1) : (a_reg + 1);
-                rob_idx_out <= rob_idx_reg; dest_reg_out <= dest_reg_reg;
-                done <= 1; busy <= 0; state <= 0;
-            end
-        end
-    end
-endmodule
-
-module abs_fu (
-    input  logic clock, reset, en, ack,
-    input  logic [31:0] a, 
-    input  logic [4:0]  rob_idx_in, 
-    input  logic [4:0]  dest_reg_in,
-    output logic [31:0] result, 
-    output logic        done, 
-    output logic [4:0]  rob_idx_out, 
-    output logic [4:0]  dest_reg_out, 
-    output logic        busy
-);
-    logic [31:0] a_reg;
-    logic [4:0]  rob_idx_reg, dest_reg_reg;
-    logic        state;
-
-    always_ff @(posedge clock or posedge reset) begin
-        if (reset) begin state <= 0; done <= 0; busy <= 0; end
-        else begin
-            if (ack) done <= 1'b0;
-            
-            if (state == 0 && en) begin
-                a_reg <= a;
-                rob_idx_reg <= rob_idx_in; dest_reg_reg <= dest_reg_in;
-                state <= 1; busy <= 1;
-            end else if (state == 1) begin
-                result <= a_reg[31] ? (~a_reg + 1) : a_reg;
-                rob_idx_out <= rob_idx_reg; dest_reg_out <= dest_reg_reg;
+                case(op_reg)
+                    2'b00:   result <= a_reg << shamt_reg;                
+                    2'b01:   result <= a_reg >> shamt_reg;                
+                    2'b10:   result <= $signed(a_reg) >>> shamt_reg;      
+                    default: result <= a_reg;
+                endcase
+                rob_idx_out <= rob_reg; dest_reg_out <= dest_reg;
                 done <= 1; busy <= 0; state <= 0;
             end
         end
@@ -336,20 +234,34 @@ module compare_fu (
     logic        state;
 
     always_ff @(posedge clock or posedge reset) begin
-        if (reset) begin state <= 0; done <= 0; busy <= 0; end
+        if (reset) begin 
+            state <= 0; 
+            done  <= 0; 
+            busy  <= 0; 
+        end
         else begin
             if (ack) done <= 1'b0; 
             
             if (state == 0 && en) begin
-                a_reg <= a; b_reg <= b;
-                rob_idx_reg <= rob_idx_in; dest_reg_reg <= dest_reg_in;
-                state <= 1; busy <= 1;
+                a_reg <= a; 
+                b_reg <= b;
+                rob_idx_reg <= rob_idx_in; 
+                dest_reg_reg <= dest_reg_in;
+                state <= 1; 
+                busy <= 1;
             end else if (state == 1) begin
-                if ($signed(a_reg) > $signed(b_reg))      result <= 32'd1;
-                else if ($signed(a_reg) < $signed(b_reg)) result <= -32'd1;
-                else                                      result <= 32'd0;
-                rob_idx_out <= rob_idx_reg; dest_reg_out <= dest_reg_reg;
-                done <= 1; busy <= 0; state <= 0;
+                if ($signed(a_reg) < $signed(b_reg)) begin
+                    result <= 32'd1;
+                end else begin
+                    result <= 32'd0;
+                end
+                
+                rob_idx_out  <= rob_idx_reg; 
+                dest_reg_out <= dest_reg_reg;
+                
+                done  <= 1; 
+                busy  <= 0; 
+                state <= 0;
             end
         end
     end
