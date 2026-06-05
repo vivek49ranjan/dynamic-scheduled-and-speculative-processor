@@ -1,4 +1,3 @@
-`timescale 1ns / 1ps
 import config_pkg::*;
 import cpu_types_pkg::*;
 
@@ -242,19 +241,73 @@ module cpu (
         .cdb_dest_reg(), 
         .fu_add_sub_busy(f_add_b), .fu_logical_busy(f_log_b), .fu_shift_busy(f_shf_b), .fu_compare_busy(f_cmp_b)
     );
-
-    logic commit_store_req;
+	 logic commit_store_req;
     logic lsq_store_done;   
-    load_store_unit u_lsu (
+    
+    logic        lsu_fu_issue_valid;
+    logic        lsu_fu_issue_is_load;
+    logic [9:0]  lsu_fu_issue_addr;
+    logic [31:0] lsu_fu_issue_data;
+    logic [4:0]  lsu_fu_issue_rob_tag;
+    logic        lsu_fu_issue_fwd_valid;
+    logic [31:0] lsu_fu_issue_fwd_data;
+    logic        lsu_fu_commit_store_valid;
+    logic [9:0]  lsu_fu_commit_store_addr;
+    logic [31:0] lsu_fu_commit_store_data;
+    logic        lsu_fu_busy;
+    logic [4:0]  lsu_fu_active_rob_tag;
+
+    lsu_reservation_station u_lsu_rs (
         .clock(clock), .reset(reset | pipeline_flush), 
-        .lsu_dispatch_valid(to_lsu_v), .lsu_packet_i(to_lsu_packet), 
+        
+        .rs_dispatch_valid(to_lsu_v), .rs_dispatch_data(to_lsu_packet), 
+        .rs_full_out(lsq_rs_full),
+
         .cdb_valid_i(cdb_valid), .cdb_rob_tag_i(cdb_tag), .cdb_value_i(cdb_val),
-        .lsu_cdb_valid(lsu_cdb_v), .lsu_cdb_rob_tag(lsu_cdb_t), .lsu_cdb_value(lsu_cdb_d), 
+
+        .fu_issue_valid(lsu_fu_issue_valid),
+        .fu_issue_is_load(lsu_fu_issue_is_load),
+        .fu_issue_addr(lsu_fu_issue_addr),
+        .fu_issue_data(lsu_fu_issue_data),
+        .fu_issue_rob_tag(lsu_fu_issue_rob_tag),
+        .fu_issue_fwd_valid(lsu_fu_issue_fwd_valid),
+        .fu_issue_fwd_data(lsu_fu_issue_fwd_data),
+        
+        .fu_commit_store_valid(lsu_fu_commit_store_valid),
+        .fu_commit_store_addr(lsu_fu_commit_store_addr),
+        .fu_commit_store_data(lsu_fu_commit_store_data),
+        
+        .fu_busy_i(lsu_fu_busy),
+        .fu_active_rob_tag_i(lsu_fu_active_rob_tag),
+        
+        .commit_store_req_i(commit_store_req),
+        .lsq_store_done_i(lsq_store_done)
+    );
+    
+    lsu_functional_unit u_lsu_fu (
+        .clock(clock), .reset(reset | pipeline_flush), 
+        
+        .fu_issue_valid(lsu_fu_issue_valid),
+        .fu_issue_is_load(lsu_fu_issue_is_load),
+        .fu_issue_addr(lsu_fu_issue_addr),
+        .fu_issue_data(lsu_fu_issue_data),
+        .fu_issue_rob_tag(lsu_fu_issue_rob_tag),
+        .fu_issue_fwd_valid(lsu_fu_issue_fwd_valid),
+        .fu_issue_fwd_data(lsu_fu_issue_fwd_data),
+        
+        .fu_commit_store_valid(lsu_fu_commit_store_valid),
+        .fu_commit_store_addr(lsu_fu_commit_store_addr),
+        .fu_commit_store_data(lsu_fu_commit_store_data),
+        
+        .fu_busy_o(lsu_fu_busy),
+        .fu_active_rob_tag_o(lsu_fu_active_rob_tag),
+        
         .data_mem_addr(data_mem_addr), .data_mem_write_data(data_mem_wdata), 
         .data_mem_read_write(data_mem_rw), .data_mem_req(data_mem_req), 
         .data_mem_data_i(data_mem_rdata), .data_mem_valid(data_mem_valid), 
-        .rs_full_o(lsq_rs_full),
-        .commit_store_req_i(commit_store_req),
+        
+        .lsu_cdb_valid(lsu_cdb_v), .lsu_cdb_rob_tag(lsu_cdb_t), .lsu_cdb_value(lsu_cdb_d), 
+        
         .lsq_store_done_o(lsq_store_done)
     );
     
@@ -290,10 +343,10 @@ module cpu (
         .rob_fill_valid_i(rob_fill_valid),
         .rob_fill_idx_i(rob_fill_idx),
         .rob_fill_data_i(rob_fill_data),
-        .wb_valid_i(cdb_valid),
-        .wb_rob_tag_i(cdb_tag),
-        .wb_result_val_i(cdb_val),
-        .wb_branch_mispredict_i(branch_won_cdb && buffered_mispredict), 
+        .cdb_valid_i(cdb_valid),
+        .cdb_rob_tag_i(cdb_tag),
+        .cdb_result_val_i(cdb_val),
+        .cdb_branch_mispredict_i(branch_won_cdb && buffered_mispredict), 
         .commit_ready_i(commit_retire_en),
         .commit_valid_o(commit_valid),
         .commit_data_o(commit_data),
