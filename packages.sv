@@ -1,5 +1,3 @@
-`timescale 1ns / 1ps
-
 package config_pkg;
     parameter FU_ADD_SUB = 3'b000;
     parameter FU_LOGICAL = 3'b011;
@@ -36,6 +34,8 @@ package config_pkg;
     parameter JGE  = 8'b11000101; 
     parameter JLTU = 8'b11000110; 
     parameter JGEU = 8'b11000111; 
+    parameter JAL  = 8'b11010000; 
+    parameter JALR = 8'b11010001; 
 
     parameter RV32_LOAD   = 7'b0000011; 
     parameter RV32_STORE  = 7'b0100011; 
@@ -74,10 +74,6 @@ package cpu_types_pkg;
         logic [4:0]        operand1_reg;
         logic [4:0]        operand2_reg;
         logic [4:0]        result_reg;
-        logic [4:0]        load_destination;
-        logic [9:0]        load_source;
-        logic [4:0]        store_source;
-        logic [9:0]        store_destination;
         logic [31:0]       immediate;
         logic [9:0]        pc; 
         logic              predicted_taken;  
@@ -102,6 +98,7 @@ package cpu_types_pkg;
         instruction_type_e instr_type;
         logic [4:0]  rd_idx;      
         logic        is_mispredicted; 
+        logic        pred_taken;     
     } rob_instruction_metadata_t;
     typedef struct packed {
         logic        busy;
@@ -151,13 +148,6 @@ package cpu_types_pkg;
         logic [9:0]  predicted_target; 
     } branch_dispatch_packet_t;
 
-    typedef struct packed {
-        logic        valid;
-        logic        ready;
-        logic        fu_ready;
-        logic [2:0]  fu_type; 
-        logic [4:0]  rob_idx;
-    } rs_status_t;
 
     typedef struct packed {
         logic        busy;
@@ -180,17 +170,12 @@ package cpu_types_pkg;
         logic [31:0] imm; 
         logic        Vj_ready;
         logic [31:0] Vj_data;
-        logic [4:0]  Vj_rob_tag;
+        logic [4:0]  Qj;
         logic        Vk_ready;
         logic [31:0] Vk_data;
-        logic [4:0]  Vk_rob_tag;
+        logic [4:0]  Qk;
         logic        pred_taken;  
         logic [9:0]  pred_target; 
     } branch_rs_entry_t;
 
-    typedef enum logic [1:0] {
-        MEM_IDLE,
-        MEM_ACCESSING,
-        MEM_COMPLETE
-    } mem_access_state_t;
 endpackage
