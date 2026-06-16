@@ -1,11 +1,14 @@
 module instruction_queue (
     input  logic        clk, reset,
     input  logic        flush, 
+	 
     input  logic        enqueue_valid,
     input  logic [52:0] enqueue_data,    
+	 
     output logic        dequeue_valid,
     output logic [52:0] dequeue_data,    
     input  logic        dequeue_request,
+	 
     output logic        queue_full
 );
 
@@ -18,9 +21,6 @@ module instruction_queue (
     logic empty;
     assign empty           = (count == 0);
     assign queue_full      = (count == IQ_DEPTH[6:0]);
-
-    assign dequeue_valid = !empty || enqueue_valid;
-    assign dequeue_data  = empty ? enqueue_data : iq_entries[head];
 
     logic do_enq, do_deq;
 
@@ -36,6 +36,9 @@ module instruction_queue (
         end else begin
             do_enq = enqueue_valid && !queue_full;
             do_deq = dequeue_request && dequeue_valid; 
+				
+				dequeue_valid = !empty || enqueue_valid;
+            dequeue_data  = empty ? enqueue_data : iq_entries[head];
 
             if (do_enq) begin
                 iq_entries[tail] <= enqueue_data;
