@@ -1,7 +1,4 @@
 
-import config_pkg::*;
-import cpu_types_pkg::*;
-
 module lsu_functional_unit (
     input  logic        clock, reset,
     
