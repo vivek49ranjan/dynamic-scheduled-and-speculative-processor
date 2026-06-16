@@ -60,4 +60,4 @@ The core of the precise exception and in-order retirement mechanism.
 ### Build Instructions
 1. Clone the repository to your local environment.
    ```bash
-   git clone [https://github.com/yourusername/ooo-riscv-processor.git](https://github.com/yourusername/ooo-riscv-processor.git)
+   git clone [https://github.com/vivek49ranjan/dynamic-scheduled-and-speculative-processor.git](https://github.com/vivek49ranjan/dynamic-scheduled-and-speculative-processor.git)
