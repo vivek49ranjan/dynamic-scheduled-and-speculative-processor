@@ -3,9 +3,9 @@ import config_pkg::*;
 
 module rename_stage (
     input  logic clk, reset, flush_i,
+    
     input  logic id_valid_i,
     input  decoded_instruction_t decode_inst_i,
-    input  logic [9:0] decode_pc_i,
     
     input  logic [4:0] rob_alloc_idx_i,
     input  logic rob_full_i,
@@ -27,11 +27,10 @@ module rename_stage (
     localparam ARCH_STATE = 6'b100000;
 
     logic rename_fire;
-
     assign rename_stall_o = rob_full_i || dispatch_stall_i;
     assign rename_fire    = id_valid_i && !rename_stall_o && !flush_i;
     assign rob_alloc_valid_o = rename_fire;
-
+    
     always_ff @(posedge clk or posedge reset) begin
         if (reset) begin
             rn_valid_o <= 1'b0;
@@ -45,13 +44,13 @@ module rename_stage (
                 rat[i] <= ARCH_STATE;
             end
         end else begin
+
             if (!dispatch_stall_i) begin
                 rn_valid_o <= rename_fire;
                 if (rename_fire) begin
                     rn_inst_o.inst         <= decode_inst_i;
                     rn_inst_o.rob_idx      <= rob_alloc_idx_i;
-                    rn_inst_o.pc           <= decode_pc_i;
-                    
+                    rn_inst_o.pc           <= decode_inst_i.pc;
                     if (commit_valid_i && commit_instr_i.rd_idx != 0 &&
                         decode_inst_i.operand1_reg == commit_instr_i.rd_idx && 
                         rat[decode_inst_i.operand1_reg][4:0] == commit_rob_idx_i) begin
