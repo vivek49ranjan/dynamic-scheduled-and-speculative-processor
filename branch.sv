@@ -1,5 +1,6 @@
 import config_pkg::*;
 import cpu_types_pkg::*;
+
 module branch_reservation_station (
     input  logic clock, reset,
     input  logic rs_dispatch_valid,
@@ -11,7 +12,7 @@ module branch_reservation_station (
     output logic [31:0] fu_issue_operand1,
     output logic [31:0] fu_issue_operand2,
     output logic [31:0] fu_issue_pc,     
-    output logic [7:0]  fu_issue_imm,   
+    output logic [31:0] fu_issue_imm,   
     output logic [4:0]  fu_issue_rob_idx,
     output logic        fu_issue_pred_taken,   
     output logic [9:0]  fu_issue_pred_target,  
@@ -23,90 +24,115 @@ module branch_reservation_station (
 
     parameter RS_DEPTH = 4;
     branch_rs_entry_t rs_entries[RS_DEPTH];
+    
     logic [4:0] issue_idx;
     logic       can_issue;
-	 
-	 logic [4:0] rs_allocated_idx;
+    logic [1:0] rs_allocated_idx;
+    logic [1:0] rr_issue_ptr; 
+    
+    logic [2:0] busy_count;
+    logic       found_empty;
+
     always_comb begin
-        rs_full_out = 1'b1;
-        rs_allocated_idx = 5'd0;
+        busy_count = 3'd0;
+        rs_allocated_idx = 2'd0;
+        found_empty = 1'b0;
+        
         for (int i = 0; i < RS_DEPTH; i++) begin
-            if (!rs_entries[i].busy) begin
-                rs_allocated_idx = i[4:0];
-                rs_full_out = 1'b0;
-                break;
+            if (rs_entries[i].busy) begin
+                busy_count = busy_count + 3'd1;
+            end else begin
+                if (!found_empty) begin
+                    rs_allocated_idx = i[4:0];
+                    found_empty = 1'b1;
+                end
             end
         end
 
+        rs_full_out = (busy_count >= (RS_DEPTH - 1));
         can_issue = 1'b0;
         issue_idx = 5'd0;
+        
         for (int i = 0; i < RS_DEPTH; i++) begin
-            if (rs_entries[i].busy && rs_entries[i].Vj_ready && rs_entries[i].Vk_ready ) begin
+            logic [1:0] idx;
+            logic       op1_rdy;
+            logic       op2_rdy;
+
+            idx = rr_issue_ptr + i[1:0]; 
+            op1_rdy = rs_entries[idx].Vj_ready || (cdb_valid && (rs_entries[idx].Qj == cdb_rob_tag) && !rs_entries[idx].Vj_ready);
+            op2_rdy = rs_entries[idx].Vk_ready || (cdb_valid && (rs_entries[idx].Qk == cdb_rob_tag) && !rs_entries[idx].Vk_ready);
+            
+            if (rs_entries[idx].busy && op1_rdy && op2_rdy) begin
                 can_issue = 1'b1;
-                issue_idx = i[4:0];
+                issue_idx = {3'b000, idx};
                 break;
             end
         end
         
         fu_issue_en          = can_issue;
-        fu_issue_opcode      = can_issue ? rs_entries[issue_idx[1:0]].opcode  : 8'h0;
-        fu_issue_operand1    = can_issue ? rs_entries[issue_idx[1:0]].Vj_data : 32'h0;
-        fu_issue_operand2    = can_issue ? rs_entries[issue_idx[1:0]].Vk_data : 32'h0;
-        fu_issue_pc          = can_issue ? rs_entries[issue_idx[1:0]].pc      : 32'h0;
-        fu_issue_imm         = can_issue ? rs_entries[issue_idx[1:0]].imm     : 8'h0;
-        fu_issue_rob_idx     = can_issue ? rs_entries[issue_idx[1:0]].rob_idx : 5'h0;
-        fu_issue_pred_taken  = can_issue ? rs_entries[issue_idx[1:0]].pred_taken  : 1'b0; 
-        fu_issue_pred_target = can_issue ? rs_entries[issue_idx[1:0]].pred_target : 10'h0; 
+        fu_issue_opcode      = can_issue ? rs_entries[issue_idx[1:0]].opcode        : 8'h0;
+        fu_issue_pc          = can_issue ? rs_entries[issue_idx[1:0]].pc            : 32'h0;
+        fu_issue_imm         = can_issue ? rs_entries[issue_idx[1:0]].imm           : 32'h0;
+        fu_issue_rob_idx     = can_issue ? rs_entries[issue_idx[1:0]].rob_idx       : 5'h0;
+        fu_issue_pred_taken  = can_issue ? rs_entries[issue_idx[1:0]].pred_taken    : 1'b0; 
+        fu_issue_pred_target = can_issue ? rs_entries[issue_idx[1:0]].pred_target   : 10'h0; 
+
+        if (can_issue) begin
+            fu_issue_operand1 = rs_entries[issue_idx[1:0]].Vj_ready ? rs_entries[issue_idx[1:0]].Vj_data : cdb_value;
+            fu_issue_operand2 = rs_entries[issue_idx[1:0]].Vk_ready ? rs_entries[issue_idx[1:0]].Vk_data : cdb_value;
+        end else begin
+            fu_issue_operand1 = 32'h0;
+            fu_issue_operand2 = 32'h0;
+        end
     end
 
     always_ff @(posedge clock or posedge reset) begin
-        logic [1:0] wr_ptr; 
 
         if (reset) begin
+            rr_issue_ptr <= 2'd0;
             for (int i = 0; i < RS_DEPTH; i++) rs_entries[i].busy <= 1'b0;
         end else begin
-            wr_ptr = rs_allocated_idx[1:0]; 
 
             if (rs_dispatch_valid && !rs_full_out) begin
-                rs_entries[wr_ptr].busy        <= 1'b1;
-                rs_entries[wr_ptr].opcode      <= rs_dispatch_data.opcode;
-                rs_entries[wr_ptr].rob_idx     <= rs_dispatch_data.rob_idx;
-                rs_entries[wr_ptr].pc          <= rs_dispatch_data.pc;        
-                rs_entries[wr_ptr].imm         <= rs_dispatch_data.immediate; 
-                rs_entries[wr_ptr].pred_taken  <= rs_dispatch_data.predicted_taken;  
-                rs_entries[wr_ptr].pred_target <= rs_dispatch_data.predicted_target; 
+                rs_entries[rs_allocated_idx].busy        <= 1'b1;
+                rs_entries[rs_allocated_idx].opcode      <= rs_dispatch_data.opcode;
+                rs_entries[rs_allocated_idx].rob_idx     <= rs_dispatch_data.rob_idx;
+                rs_entries[rs_allocated_idx].pc          <= rs_dispatch_data.pc;        
+                rs_entries[rs_allocated_idx].imm         <= rs_dispatch_data.immediate; 
+                rs_entries[rs_allocated_idx].pred_taken  <= rs_dispatch_data.predicted_taken;  
+                rs_entries[rs_allocated_idx].pred_target <= rs_dispatch_data.predicted_target; 
                 
                 if (rs_dispatch_data.operand1_ready) begin
-                    rs_entries[wr_ptr].Vj_ready <= 1'b1;
-                    rs_entries[wr_ptr].Vj_data  <= rs_dispatch_data.operand1_val;
+                    rs_entries[rs_allocated_idx].Vj_ready <= 1'b1;
+                    rs_entries[rs_allocated_idx].Vj_data  <= rs_dispatch_data.operand1_val;
                 end else if (cdb_valid && (rs_dispatch_data.operand1_rob_tag == cdb_rob_tag)) begin
-                    rs_entries[wr_ptr].Vj_ready <= 1'b1;
-                    rs_entries[wr_ptr].Vj_data  <= cdb_value;
+                    rs_entries[rs_allocated_idx].Vj_ready <= 1'b1;
+                    rs_entries[rs_allocated_idx].Vj_data  <= cdb_value;
                 end else begin
-                    rs_entries[wr_ptr].Vj_ready   <= 1'b0;
-                    rs_entries[wr_ptr].Vj_rob_tag <= rs_dispatch_data.operand1_rob_tag;
+                    rs_entries[rs_allocated_idx].Vj_ready   <= 1'b0;
+                    rs_entries[rs_allocated_idx].Qj <= rs_dispatch_data.operand1_rob_tag;
                 end
 
                 if (rs_dispatch_data.operand2_ready) begin
-                    rs_entries[wr_ptr].Vk_ready <= 1'b1;
-                    rs_entries[wr_ptr].Vk_data  <= rs_dispatch_data.operand2_val;
+                    rs_entries[rs_allocated_idx].Vk_ready <= 1'b1;
+                    rs_entries[rs_allocated_idx].Vk_data  <= rs_dispatch_data.operand2_val;
                 end else if (cdb_valid && (rs_dispatch_data.operand2_rob_tag == cdb_rob_tag)) begin
-                    rs_entries[wr_ptr].Vk_ready <= 1'b1;
-                    rs_entries[wr_ptr].Vk_data  <= cdb_value;
+                    rs_entries[rs_allocated_idx].Vk_ready <= 1'b1;
+                    rs_entries[rs_allocated_idx].Vk_data  <= cdb_value;
                 end else begin
-                    rs_entries[wr_ptr].Vk_ready   <= 1'b0;
-                    rs_entries[wr_ptr].Vk_rob_tag <= rs_dispatch_data.operand2_rob_tag;
+                    rs_entries[rs_allocated_idx].Vk_ready   <= 1'b0;
+                    rs_entries[rs_allocated_idx].Qk <= rs_dispatch_data.operand2_rob_tag;
                 end
             end
             
             if (cdb_valid) begin
                 for (int i = 0; i < RS_DEPTH; i++) begin
                     if (rs_entries[i].busy) begin
-                        if (!rs_entries[i].Vj_ready && (rs_entries[i].Vj_rob_tag == cdb_rob_tag)) begin
+                        if (!rs_entries[i].Vj_ready && (rs_entries[i].Qj == cdb_rob_tag)) begin
                             rs_entries[i].Vj_ready <= 1'b1;
                             rs_entries[i].Vj_data  <= cdb_value;
                         end
-                        if (!rs_entries[i].Vk_ready && (rs_entries[i].Vk_rob_tag == cdb_rob_tag)) begin
+                        if (!rs_entries[i].Vk_ready && (rs_entries[i].Qk == cdb_rob_tag)) begin
                             rs_entries[i].Vk_ready <= 1'b1;
                             rs_entries[i].Vk_data  <= cdb_value;
                         end
@@ -114,65 +140,9 @@ module branch_reservation_station (
                 end
             end
 
-            if (fu_issue_en) rs_entries[issue_idx[1:0]].busy <= 1'b0;
-        end
-    end
-endmodule
-module branch_unit (
-    input  logic        clock, reset,
-    input  logic        fu_issue_en,
-    input  logic [7:0]  fu_issue_opcode,
-    input  logic [31:0] fu_issue_operand1,
-    input  logic [31:0] fu_issue_operand2,
-    input  logic [31:0] fu_issue_pc,  
-    input  logic [7:0]  fu_issue_imm, 
-    input  logic [4:0]  fu_issue_rob_idx,
-    input  logic        fu_issue_pred_taken,  
-    input  logic [9:0]  fu_issue_pred_target,  
-    output logic        branch_cdb_valid,
-    output logic [4:0]  branch_cdb_tag,
-    output logic [31:0] branch_cdb_val,
-    output logic        branch_cdb_mispredict 
-);
-    logic [9:0] target_pc;
-    logic taken;
-    logic [9:0] word_offset;
-    logic is_mispredict;
-
-    always_comb begin
-        case (fu_issue_opcode)
-            8'b11000100: taken = (fu_issue_operand1 == fu_issue_operand2);
-            8'b11000010: taken = (fu_issue_operand1 != fu_issue_operand2);
-            8'b11000000: taken = ($signed(fu_issue_operand1) < $signed(fu_issue_operand2));
-            8'b11000101: taken = ($signed(fu_issue_operand1) >= $signed(fu_issue_operand2));
-            8'b11000110: taken = (fu_issue_operand1 < fu_issue_operand2);
-            8'b11000111: taken = (fu_issue_operand1 >= fu_issue_operand2);
-            default: taken = 1'b0;
-        endcase
-        
-        word_offset = $signed(fu_issue_imm) >>> 2;
-        target_pc = taken ? (fu_issue_pc[9:0] + word_offset) : (fu_issue_pc[9:0] + 10'd1);
-        
-        is_mispredict = (taken != fu_issue_pred_taken) || 
-                        (taken && (target_pc != fu_issue_pred_target));
-    end
-
-    always_ff @(posedge clock or posedge reset) begin
-        if (reset) begin
-            branch_cdb_valid      <= 1'b0;
-            branch_cdb_tag        <= '0;
-            branch_cdb_val        <= '0;
-            branch_cdb_mispredict <= 1'b0; 
-        end
-        else begin
-            if (fu_issue_en) begin
-                branch_cdb_valid      <= 1'b1;
-                branch_cdb_tag        <= fu_issue_rob_idx;
-                branch_cdb_val        <= {21'b0, taken, target_pc}; 
-                branch_cdb_mispredict <= is_mispredict; 
-            end
-            else begin
-                branch_cdb_valid      <= 1'b0;
+            if (can_issue) begin
+                rs_entries[issue_idx[1:0]].busy <= 1'b0;
+                rr_issue_ptr <= issue_idx[1:0] + 2'd1;
             end
         end
     end
