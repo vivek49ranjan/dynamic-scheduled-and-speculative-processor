@@ -88,8 +88,6 @@ package cpu_types_pkg;
         logic [4:0]           op1_rob_tag; 
         logic                 op2_is_ready;
         logic [4:0]           op2_rob_tag;
-        logic                 store_data_is_ready;
-        logic [4:0]           store_data_rob_tag;
     } renamed_instruction_t;
 
 	typedef struct packed {
