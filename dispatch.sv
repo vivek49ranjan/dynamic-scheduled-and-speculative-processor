@@ -156,8 +156,8 @@ module dispatch_stage (
                rob_fill_data_o.opcode     <= rn_inst_i.inst.opcode;
                rob_fill_data_o.instr_type <= rn_inst_i.inst.instr_type;
                rob_fill_data_o.rd_idx     <= rn_inst_i.inst.result_reg; 
-					rob_fill_data_o.is_mispredicted = 1'b0; 
-					rob_fill_data_o.pred_taken      = rn_inst_i.inst.predicted_taken;
+					rob_fill_data_o.is_mispredicted <= 1'b0; 
+					rob_fill_data_o.pred_taken      <= rn_inst_i.inst.predicted_taken;
 					 
 				   if (is_alu_op) begin
                     to_alu_valid_o               <= 1'b1;
