@@ -13,7 +13,7 @@ module cpu (
     logic pipeline_flush, rob_full, rename_stall;
     logic dispatch_success; 
     logic dispatch_stall;
-    logic [31:0] redirect_pc;
+	logic [9:0] redirect_pc;
     logic [9:0]  id_pc;
     logic        id_valid, rob_alloc_valid, rob_fill_valid, commit_retire_en, commit_valid;
     logic [4:0]  rob_alloc_idx, rob_fill_idx, rob_head_tag;
@@ -135,15 +135,23 @@ module cpu (
     logic buffered_mispredict;
     assign buffered_mispredict = (cdb_count > 0) && cdb_fifo[cdb_head].mispredict;
 
+    logic is_bogus_branch;
+
     always_comb begin
-        for (int i = 0; i < 8; i++) alu_rs_status_packed[i] = alu_rs_status_unpacked[i];
-
-        bp_train_en = commit_valid && commit_retire_en && (commit_data.inst_data.instr_type == INSTR_BRANCH);
+        is_bogus_branch = commit_data.inst_data.pred_taken && 
+                          (commit_data.inst_data.instr_type != INSTR_BRANCH);
+        bp_train_en = commit_valid && commit_retire_en && 
+                      ((commit_data.inst_data.instr_type == INSTR_BRANCH) || is_bogus_branch);
         bp_train_pc = commit_data.inst_data.pc[9:0];
-        bp_train_target = commit_data.result_value[9:0];
-        bp_train_taken = (commit_data.result_value[9:0] != (commit_data.inst_data.pc[9:0] + 10'd1));
-    end
 
+        if (is_bogus_branch) begin
+            bp_train_taken  = 1'b0;
+            bp_train_target = commit_data.inst_data.pc[9:0] + 10'd1; 
+        end else begin
+            bp_train_target = redirect_pc[9:0];
+            bp_train_taken  = (redirect_pc[9:0] != (commit_data.inst_data.pc[9:0] + 10'd1));
+        end
+    end
     assign current_pc_out = id_pc;
     assign alu_result     = (commit_valid) ? commit_data.result_value : 32'b0;
 
