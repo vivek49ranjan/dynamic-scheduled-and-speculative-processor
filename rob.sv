@@ -26,7 +26,7 @@ module rob (
     output logic [4:0]  head_ptr_o,
      
     output logic        flush_o,
-    output logic [31:0] flush_pc_o,
+    output logic [9:0] flush_pc_o,
     output logic [9:0]  flush_branch_pc_o,
 
     input  logic [4:0]  read_idx1_i,
@@ -62,8 +62,8 @@ module rob (
     assign flush_o           = commit_valid_o && commit_ready_i && 
                                (commit_data_o.inst_data.is_mispredicted || is_bogus_branch);
                                
-    assign flush_pc_o        = is_bogus_branch ? {22'd0, (commit_data_o.inst_data.pc[9:0] + 10'd1)} 
-                                               : {22'd0, rob_branch_targets[head_ptr]};
+    assign flush_pc_o        = is_bogus_branch ? commit_data_o.inst_data.pc[9:0] + 10'd1
+                                               : rob_branch_targets[head_ptr];
                                                
     assign flush_branch_pc_o = commit_data_o.inst_data.pc[9:0];
 
