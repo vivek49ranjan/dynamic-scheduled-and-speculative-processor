@@ -25,7 +25,7 @@ module branch_reservation_station (
     parameter RS_DEPTH = 4;
     branch_rs_entry_t rs_entries[RS_DEPTH];
     
-    logic [4:0] issue_idx;
+    logic [1:0] issue_idx;
     logic       can_issue;
     logic [1:0] rs_allocated_idx;
     logic [1:0] rr_issue_ptr; 
@@ -64,22 +64,22 @@ module branch_reservation_station (
             
             if (rs_entries[idx].busy && op1_rdy && op2_rdy) begin
                 can_issue = 1'b1;
-                issue_idx = {3'b000, idx};
+                issue_idx = idx;
                 break;
             end
         end
         
         fu_issue_en          = can_issue;
-        fu_issue_opcode      = can_issue ? rs_entries[issue_idx[1:0]].opcode        : 8'h0;
-        fu_issue_pc          = can_issue ? rs_entries[issue_idx[1:0]].pc            : 32'h0;
-        fu_issue_imm         = can_issue ? rs_entries[issue_idx[1:0]].imm           : 32'h0;
-        fu_issue_rob_idx     = can_issue ? rs_entries[issue_idx[1:0]].rob_idx       : 5'h0;
-        fu_issue_pred_taken  = can_issue ? rs_entries[issue_idx[1:0]].pred_taken    : 1'b0; 
-        fu_issue_pred_target = can_issue ? rs_entries[issue_idx[1:0]].pred_target   : 10'h0; 
+        fu_issue_opcode      = can_issue ? rs_entries[issue_idx].opcode        : 8'h0;
+        fu_issue_pc          = can_issue ? rs_entries[issue_idx].pc            : 32'h0;
+        fu_issue_imm         = can_issue ? rs_entries[issue_idx].imm           : 32'h0;
+        fu_issue_rob_idx     = can_issue ? rs_entries[issue_idx].rob_idx       : 5'h0;
+        fu_issue_pred_taken  = can_issue ? rs_entries[issue_idx].pred_taken    : 1'b0; 
+        fu_issue_pred_target = can_issue ? rs_entries[issue_idx].pred_target   : 10'h0; 
 
         if (can_issue) begin
-            fu_issue_operand1 = rs_entries[issue_idx[1:0]].Vj_ready ? rs_entries[issue_idx[1:0]].Vj_data : cdb_value;
-            fu_issue_operand2 = rs_entries[issue_idx[1:0]].Vk_ready ? rs_entries[issue_idx[1:0]].Vk_data : cdb_value;
+            fu_issue_operand1 = rs_entries[issue_idx].Vj_ready ? rs_entries[issue_idx].Vj_data : cdb_value;
+            fu_issue_operand2 = rs_entries[issue_idx].Vk_ready ? rs_entries[issue_idx].Vk_data : cdb_value;
         end else begin
             fu_issue_operand1 = 32'h0;
             fu_issue_operand2 = 32'h0;
