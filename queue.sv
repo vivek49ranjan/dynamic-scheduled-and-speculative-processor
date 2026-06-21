@@ -21,8 +21,12 @@ module instruction_queue (
     logic empty;
     assign empty           = (count == 0);
     assign queue_full      = (count == IQ_DEPTH[6:0]);
+    assign dequeue_valid = !empty || enqueue_valid;
+    assign dequeue_data  = empty ? enqueue_data : iq_entries[head];
 
     logic do_enq, do_deq;
+    assign do_enq = enqueue_valid && !queue_full;
+    assign do_deq = dequeue_request && dequeue_valid; 
 
     always_ff @(posedge clk or posedge reset) begin
         if (reset) begin
@@ -34,12 +38,6 @@ module instruction_queue (
             tail  <= 6'b0;
             count <= 7'b0;
         end else begin
-            do_enq = enqueue_valid && !queue_full;
-            do_deq = dequeue_request && dequeue_valid; 
-				
-				dequeue_valid = !empty || enqueue_valid;
-            dequeue_data  = empty ? enqueue_data : iq_entries[head];
-
             if (do_enq) begin
                 iq_entries[tail] <= enqueue_data;
                 tail <= tail + 1;
