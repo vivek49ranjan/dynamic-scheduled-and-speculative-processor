@@ -8,6 +8,9 @@ package config_pkg;
     parameter OPCODE_SUB     = {FU_ADD_SUB, 5'b00001}; 
     parameter OPCODE_ADDI    = {FU_ADD_SUB, 5'b00010}; 
     parameter OPCODE_SUBI    = {FU_ADD_SUB, 5'b00101}; 
+    
+    parameter OPCODE_LUI     = {FU_ADD_SUB, 5'b01000}; 
+    parameter OPCODE_AUIPC   = {FU_ADD_SUB, 5'b01001}; 
 
     parameter OPCODE_AND     = {FU_LOGICAL, 5'b00000}; 
     parameter OPCODE_OR      = {FU_LOGICAL, 5'b00001}; 
@@ -90,7 +93,7 @@ package cpu_types_pkg;
         logic [4:0]           op2_rob_tag;
     } renamed_instruction_t;
 
-	typedef struct packed {
+    typedef struct packed {
         logic [31:0] pc;
         logic [7:0]  opcode;
         instruction_type_e instr_type;
@@ -98,6 +101,7 @@ package cpu_types_pkg;
         logic        is_mispredicted; 
         logic        pred_taken;     
     } rob_instruction_metadata_t;
+    
     typedef struct packed {
         logic        busy;
         logic        is_complete;
@@ -175,5 +179,19 @@ package cpu_types_pkg;
         logic        pred_taken;  
         logic [9:0]  pred_target; 
     } branch_rs_entry_t;
+	 
+	 typedef struct packed {
+        logic        busy;
+        logic        executed;
+        logic        is_load;
+        logic        addr_ready;
+        logic [9:0]  addr; 
+        logic [4:0]  addr_tag;  
+        logic [9:0]  imm;  
+        logic        data_ready;
+        logic [31:0] data; 
+        logic [4:0]  data_tag;  
+        logic [4:0]  rob_tag;
+    } lsq_entry_t;
 
 endpackage
