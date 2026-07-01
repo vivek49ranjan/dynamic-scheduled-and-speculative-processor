@@ -11,8 +11,8 @@ module decode (
     input  logic [9:0]          if_id_pc,
     input  logic [31:0]         if_id_opcode,
     
-    input  logic                stall,             
-    input  logic                flush,             
+    input  logic                stall,              
+    input  logic                flush,              
     
     output logic                id_valid,
     output decoded_instruction_t decoded_instruction
@@ -110,7 +110,7 @@ module decode (
                 
                 RV32_LUI: begin
                     next_decoded_instruction.instr_type   = INSTR_ALU; 
-                    next_decoded_instruction.opcode       = OPCODE_ADDI; 
+                    next_decoded_instruction.opcode       = OPCODE_LUI; 
                     next_decoded_instruction.operand1_reg = 5'd0; 
                     next_decoded_instruction.operand2_reg = 5'd0; 
                     next_decoded_instruction.result_reg   = rv_rd;
@@ -119,11 +119,11 @@ module decode (
 
                 RV32_AUIPC: begin
                     next_decoded_instruction.instr_type   = INSTR_ALU; 
-                    next_decoded_instruction.opcode       = OPCODE_ADDI;
+                    next_decoded_instruction.opcode       = OPCODE_AUIPC;
                     next_decoded_instruction.operand1_reg = 5'd0; 
                     next_decoded_instruction.operand2_reg = 5'd0; 
                     next_decoded_instruction.result_reg   = rv_rd;
-                    next_decoded_instruction.immediate    = {20'd0, if_id_pc, 2'b00} + {if_id_opcode[31:12], 12'b0}; 
+                    next_decoded_instruction.immediate    = {if_id_opcode[31:12], 12'b0}; 
                 end
 
                 RV32_JAL: begin
