@@ -33,20 +33,6 @@ module lsu_reservation_station #(
     input  logic                 lsq_store_done_i
 );
 
-    typedef struct packed {
-        logic        busy;
-        logic        executed;
-        logic        is_load;
-        logic        addr_ready;
-        logic [9:0]  addr; 
-        logic [4:0]  addr_tag;  
-        logic [9:0]  imm;  
-        logic        data_ready;
-        logic [31:0] data; 
-        logic [4:0]  data_tag;  
-        logic [4:0]  rob_tag;
-    } lsq_entry_t;
-
     lsq_entry_t lsq [0:LSQ_DEPTH-1];
     logic [2:0] head, tail;
     logic [3:0] count;
