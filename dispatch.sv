@@ -54,17 +54,21 @@ module dispatch_stage (
 
     logic is_branch_op;
     logic is_alu_op;
+    
     assign is_branch_op = (rn_inst_i.inst.instr_type == INSTR_BRANCH) || 
                           (rn_inst_i.inst.opcode == JAL) || 
                           (rn_inst_i.inst.opcode == JALR);
+                          
     assign is_alu_op = (rn_inst_i.inst.instr_type == INSTR_ALU) && !is_branch_op;
 
     assign sign_extended_imm = rn_inst_i.inst.immediate;
+    
     assign is_alu_imm =(rn_inst_i.inst.instr_type == INSTR_ALU) && (
-                              rn_inst_i.inst.opcode == OPCODE_ADDI || rn_inst_i.inst.opcode == OPCODE_SUBI ||
-                              rn_inst_i.inst.opcode == OPCODE_ANDI || rn_inst_i.inst.opcode == OPCODE_ORI  ||
-                              rn_inst_i.inst.opcode == OPCODE_XORI || rn_inst_i.inst.opcode == OPCODE_SLLI ||
-                              rn_inst_i.inst.opcode == OPCODE_SRLI || rn_inst_i.inst.opcode == OPCODE_SRAI);
+                                rn_inst_i.inst.opcode == OPCODE_ADDI || rn_inst_i.inst.opcode == OPCODE_SUBI ||
+                                rn_inst_i.inst.opcode == OPCODE_ANDI || rn_inst_i.inst.opcode == OPCODE_ORI  ||
+                                rn_inst_i.inst.opcode == OPCODE_XORI || rn_inst_i.inst.opcode == OPCODE_SLLI ||
+                                rn_inst_i.inst.opcode == OPCODE_SRLI || rn_inst_i.inst.opcode == OPCODE_SRAI ||
+                                rn_inst_i.inst.opcode == OPCODE_AUIPC || rn_inst_i.inst.opcode == OPCODE_LUI);
 
     assign rf_raddr1_o = rn_inst_i.inst.operand1_reg;
     assign rf_raddr2_o = rn_inst_i.inst.operand2_reg; 
@@ -78,7 +82,10 @@ module dispatch_stage (
     logic        op2_ready_resolved;
 
     always_comb begin
-        if (rn_inst_i.op1_is_ready) begin
+        if (rn_inst_i.inst.opcode == OPCODE_AUIPC) begin
+            op1_val_resolved   = {22'b0, rn_inst_i.pc};
+            op1_ready_resolved = 1'b1;                  
+        end else if (rn_inst_i.op1_is_ready) begin
             op1_val_resolved   = rf_rdata1_i;
             op1_ready_resolved = 1'b1;
         end else begin
@@ -149,17 +156,17 @@ module dispatch_stage (
             to_branch_valid_o <= 1'b0;
 
             if (dispatch_fire) begin
-               rob_fill_valid_o           <= 1'b1;
-               rob_fill_idx_o             <= rn_inst_i.rob_idx; 
-                
-               rob_fill_data_o.pc         <= {22'b0, rn_inst_i.pc};
-               rob_fill_data_o.opcode     <= rn_inst_i.inst.opcode;
-               rob_fill_data_o.instr_type <= rn_inst_i.inst.instr_type;
-               rob_fill_data_o.rd_idx     <= rn_inst_i.inst.result_reg; 
-					rob_fill_data_o.is_mispredicted <= 1'b0; 
-					rob_fill_data_o.pred_taken      <= rn_inst_i.inst.predicted_taken;
-					 
-				   if (is_alu_op) begin
+               rob_fill_valid_o            <= 1'b1;
+               rob_fill_idx_o              <= rn_inst_i.rob_idx; 
+               
+               rob_fill_data_o.pc          <= {22'b0, rn_inst_i.pc};
+               rob_fill_data_o.opcode      <= rn_inst_i.inst.opcode;
+               rob_fill_data_o.instr_type  <= rn_inst_i.inst.instr_type;
+               rob_fill_data_o.rd_idx      <= rn_inst_i.inst.result_reg; 
+               rob_fill_data_o.is_mispredicted <= 1'b0; 
+               rob_fill_data_o.pred_taken      <= rn_inst_i.inst.predicted_taken;
+                    
+               if (is_alu_op) begin
                     to_alu_valid_o               <= 1'b1;
                     to_alu_packet_o.opcode       <= rn_inst_i.inst.opcode;
                     to_alu_packet_o.rob_idx      <= rn_inst_i.rob_idx;
